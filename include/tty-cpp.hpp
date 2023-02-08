@@ -13,8 +13,12 @@
 #include <exception>
 #include <stdexcept>
 #include <unistd.h>
+#include <termios.h>
 
 namespace Term {
+const std::string Version = "1.0.0";
+const std::string Repo = "https://github.com/ZackeryRSmith/tty-cpp";
+
 /********************* NAMESPACE PRIVATE *********************/
 namespace Private {
 std::string getenv(const std::string&);
@@ -46,6 +50,11 @@ bool is_stdin_a_tty();
 bool is_stdout_a_tty();
 bool is_stderr_a_tty();
 
+termios get_term_attributes();
+void term_load(termios); // load terminal attributes from the passed termios struct
+void keyboard_enabled(bool);
+void disable_signal_keys(bool);
+
 std::pair<std::size_t, std::size_t> get_size(); // get terminal size (column, row)
 bool stdin_connected(); // check if stdin is connected to a TTY
 bool stdout_connected(); // check if stdout is connect to a TTY
@@ -66,8 +75,8 @@ std::string cursor_left(std::size_t columns);
 std::pair<std::size_t, std::size_t> cursor_position(); // returns the current cursor position (row, column)
 std::string cursor_position_report(); // the ANSI code to generate a cursor position report
 std::string clear_eol(); // clear from cursor position to the end of the line
-std::string screen_save(); // save terminal state
-std::string screen_load(); // restore last saved terminal state
+std::string screen_save(); // save screen state
+std::string screen_load(); // restore last saved screen state
 std::string terminal_title(const std::string& title); // change the terminal title (supported by only a few terminals)
 
 } // namespace Term
@@ -809,6 +818,7 @@ std::string Term::read_stdin() {
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <iostream>
+#include <termios.h>
 
 /********************* NAMESPACE PRIVATE *********************/
 std::string Term::Private::getenv(const std::string& env) {
@@ -857,7 +867,34 @@ bool Term::is_stdin_a_tty() { return is_a_tty(stdin); }
 bool Term::is_stdout_a_tty() { return is_a_tty(stdout); }
 bool Term::is_stderr_a_tty() { return is_a_tty(stderr); }
 
-
+termios Term::get_term_attributes() {
+    struct termios term;
+    if (tcgetattr(STDIN_FILENO, &term) != 0)
+        throw Term::Exception("tcgetattr() failed");
+    return term;
+}
+void Term::term_load(termios term) { tcsetattr(STDIN_FILENO, TCSANOW, &term); }
+void Term::keyboard_enabled(bool keyboard_enabled) {
+    termios raw{};
+    if (keyboard_enabled) {
+        if(tcgetattr(0, &raw) == -1) { throw Term::Exception("tcgetattr() failed"); }
+        
+        raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+        raw.c_cflag |= CS8;
+        raw.c_lflag &= ~(ECHO | ICANON | IEXTEN);
+        raw.c_cc[VMIN]  = 0;
+        raw.c_cc[VTIME] = 0;
+        if(tcsetattr(0, TCSAFLUSH, &raw) == -1) { throw Term::Exception("tcsetattr() failed"); }
+    }
+}
+void Term::disable_signal_keys(bool signal_keys_disabled) {
+    termios raw{};
+    if (signal_keys_disabled) {
+        if(tcgetattr(0, &raw) == -1) { throw Term::Exception("tcgetattr() failed"); }
+        raw.c_lflag &= ~ISIG;
+        if(tcsetattr(0, TCSAFLUSH, &raw) == -1) { throw Term::Exception("tcsetattr() failed"); }
+    }
+}
 
 std::pair<std::size_t, std::size_t> Term::get_size() { return Private::get_term_size(); }
 bool Term::stdin_connected() { return Term::is_stdin_a_tty(); }
