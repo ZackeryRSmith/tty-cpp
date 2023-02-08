@@ -4,6 +4,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <iostream>
+#include <termios.h>
 
 /********************* NAMESPACE PRIVATE *********************/
 std::string Term::Private::getenv(const std::string& env) {
@@ -52,7 +53,34 @@ bool Term::is_stdin_a_tty() { return is_a_tty(stdin); }
 bool Term::is_stdout_a_tty() { return is_a_tty(stdout); }
 bool Term::is_stderr_a_tty() { return is_a_tty(stderr); }
 
-
+termios Term::get_term_attributes() {
+    struct termios term;
+    if (tcgetattr(STDIN_FILENO, &term) != 0)
+        throw Term::Exception("tcgetattr() failed");
+    return term;
+}
+void Term::term_load(termios term) { tcsetattr(STDIN_FILENO, TCSANOW, &term); }
+void Term::keyboard_enabled(bool keyboard_enabled) {
+    termios raw{};
+    if (keyboard_enabled) {
+        if(tcgetattr(0, &raw) == -1) { throw Term::Exception("tcgetattr() failed"); }
+        
+        raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+        raw.c_cflag |= CS8;
+        raw.c_lflag &= ~(ECHO | ICANON | IEXTEN);
+        raw.c_cc[VMIN]  = 0;
+        raw.c_cc[VTIME] = 0;
+        if(tcsetattr(0, TCSAFLUSH, &raw) == -1) { throw Term::Exception("tcsetattr() failed"); }
+    }
+}
+void Term::disable_signal_keys(bool signal_keys_disabled) {
+    termios raw{};
+    if (signal_keys_disabled) {
+        if(tcgetattr(0, &raw) == -1) { throw Term::Exception("tcgetattr() failed"); }
+        raw.c_lflag &= ~ISIG;
+        if(tcsetattr(0, TCSAFLUSH, &raw) == -1) { throw Term::Exception("tcsetattr() failed"); }
+    }
+}
 
 std::pair<std::size_t, std::size_t> Term::get_size() { return Private::get_term_size(); }
 bool Term::stdin_connected() { return Term::is_stdin_a_tty(); }
