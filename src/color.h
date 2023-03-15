@@ -45,7 +45,8 @@ enum Style : std::uint8_t {
 class rgb {
 public:
     rgb() = default;
-    rgb(const std::uint8_t& _r, const std::uint8_t& _g, const std::uint8_t& _b) : r(_r), g(_g), b(_b), empty(false) {}
+    rgb(const std::uint8_t& red, const std::uint8_t& green, const std::uint8_t& blue) : r(red), g(green), b(blue), empty(false) {}
+    
     std::uint8_t r{0};
     std::uint8_t g{0};
     std::uint8_t b{0};
