@@ -1,1 +1,3 @@
 heady
+.DS_Store
+tests/a.out
