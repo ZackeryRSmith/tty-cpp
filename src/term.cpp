@@ -1,6 +1,8 @@
 #include "term.h"
 
 #include <cerrno>
+#include <cstdio>
+#include <string>
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <iostream>
@@ -15,35 +17,11 @@ std::string Term::Private::getenv(const std::string& env) {
 }
 
 std::pair<std::size_t, std::size_t> Term::Private::get_term_size() {
-    struct winsize ws {};
+    struct winsize ws;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)
         throw Term::Exception("Couldn't get terminal size. Are we even connected to a TTY?");
     else
-        return std::pair<std::size_t, std::size_t>{ws.ws_col, ws.ws_row};
-}
-
-char Term::Private::read_raw_stdin() {
-    char c = getchar();
-    if (c >= 0) 
-        return c;
-    else if (c == EOF)
-        // In non-raw (blocking) mode this happens when the input file
-        // ends. In such a case, return the End of Transmission (EOT)
-        // character (Ctrl-D)
-        return 0x04;
-    else
-        throw Term::Exception("getchar() failed");
-}
-
-bool Term::Private::read_raw(char* s) {
-  // do nothing when TTY is not connected
-  if (!is_stdin_a_tty())
-      return false;
-  
-  ::ssize_t nread = ::read(0, s, 1);
-  if (nread == -1 && errno != EAGAIN) 
-    throw Term::Exception("read() failed");
-  return (nread == 1);
+        return std::pair<std::size_t, std::size_t>(ws.ws_col, ws.ws_row);
 }
 /*************************************************************/
 
@@ -59,72 +37,124 @@ termios Term::get_term_attributes() {
         throw Term::Exception("tcgetattr() failed");
     return term;
 }
-void Term::term_load(termios term) { tcsetattr(STDIN_FILENO, TCSANOW, &term); }
-void Term::keyboard_enabled(bool keyboard_enabled) {
-    termios raw{};
-    if (keyboard_enabled) {
-        if(tcgetattr(0, &raw) == -1) { throw Term::Exception("tcgetattr() failed"); }
-        
-        raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-        raw.c_cflag |= CS8;
-        raw.c_lflag &= ~(ECHO | ICANON | IEXTEN);
-        raw.c_cc[VMIN]  = 0;
-        raw.c_cc[VTIME] = 0;
-        if(tcsetattr(0, TCSAFLUSH, &raw) == -1) { throw Term::Exception("tcsetattr() failed"); }
-    }
-}
-void Term::disable_signal_keys(bool signal_keys_disabled) {
-    termios raw{};
-    if (signal_keys_disabled) {
-        if(tcgetattr(0, &raw) == -1) { throw Term::Exception("tcgetattr() failed"); }
-        raw.c_lflag &= ~ISIG;
-        if(tcsetattr(0, TCSAFLUSH, &raw) == -1) { throw Term::Exception("tcsetattr() failed"); }
-    }
-}
 
 std::pair<std::size_t, std::size_t> Term::get_size() { return Private::get_term_size(); }
 bool Term::stdin_connected() { return Term::is_stdin_a_tty(); }
 bool Term::stdout_connected() { return Term::is_stdout_a_tty(); }
-std::string Term::cursor_off() { return "\x1b[?25l"; }
-std::string Term::cursor_on() { return "\x1b[?25h"; }
-std::string Term::clear_screen() { return "\033[2J"; }
-std::string Term::clear_buffer() { return "\033[3J"; }
-std::string Term::cursor_move(std::size_t row, std::size_t column) { return "\033[" + std::to_string(row) + ';' + std::to_string(column) + 'H'; }
-std::string Term::cursor_up() { return "\033[1A"; }
-std::string Term::cursor_up(std::size_t rows) { return "\033[" + std::to_string(rows) + 'A'; }
-std::string Term::cursor_down() { return "\033[1B"; }
-std::string Term::cursor_down(std::size_t rows) { return "\033[" + std::to_string(rows) + 'B'; }
-std::string Term::cursor_right() { return "\033[1C"; }
-std::string Term::cursor_right(std::size_t columns) { return "\033[" + std::to_string(columns) + 'C'; }
-std::string Term::cursor_left() { return "\033[1D"; }
-std::string Term::cursor_left(std::size_t columns) { return "\033[" + std::to_string(columns) + 'D'; }
-std::pair<std::size_t, std::size_t> Term::cursor_position() {
-    // write cursor position report
-    std::cout << cursor_position_report() << std::flush;
-    // read input buffer
-    std::string buf;
-    char c{'\0'};
-    do {
-        while(!Private::read_raw(&c));
-        buf.push_back(c);
-    } while(c != 'R');
 
-    bool found{false};
-    std::size_t row{0};
-    std::size_t column{0};
-    for(std::size_t i = 2; i < buf.size(); i++) {
-        if (buf[i] == ';') 
-            found = true;
-        else if (found == false && buf[i] >= '0' && buf[i] <= '9')
-            row = row * 10 + (buf[i] - '0');
-        else if (found == true && buf[i] >= '0' && buf[i] <= '9')
-            column = column * 10 + (buf[i] - '0');
+inline void Term::clear_screen()  { std::cerr << "\033[2J\033[H" << std::flush; }
+inline void Term::clear_to_eol()  { std::cerr << "\033[0K" << std::flush; }
+inline void Term::clear_to_eof()  { std::cerr << "\033[0J" << std::flush; }
+inline void Term::clear_to_sol()  { std::cerr << "\033[1K" << std::flush; }
+inline void Term::clear_to_sof()  { std::cerr << "\033[1J" << std::flush; }
+inline void Term::clear_line()    { std::cerr << "\033[2K" << std::flush; }
+inline void Term::clear_partial(const std::size_t& row, const std::size_t& column, const std::size_t& width, const std::size_t& height) {
+    cursor_pos_t oldpos = Term::cursor_position();
+    std::string spaces(width, ' ');
+
+    for (int i = 0; i < height; i++) {
+        Term::cursor_set(row + i, column);
+        std::cout << spaces;
     }
-    return std::pair<std::size_t, std::size_t>(row, column);
+    Term::cursor_set(oldpos.row, oldpos.column);
 }
 
-std::string Term::cursor_position_report() { return "\x1b[6n"; }
-std::string Term::clear_eol() { return "\033[K"; }
-std::string Term::screen_save() { return "\0337\033[?1049h"; }
-std::string Term::screen_load() { return "\033[?1049l\0338"; }
-std::string Term::terminal_title(const std::string& title) { return "\033]0;" + title + '\a'; }
+inline void Term::set_row(const std::size_t& row) {
+    cursor_pos_t oldpos = Term::cursor_position(); Term::cursor_set(row, oldpos.column);
+}
+inline void Term::set_column(const std::size_t& column) {
+    std::cerr << "\033[" << column << 'G' << std::flush;
+}
+inline void Term::cursor_up(const std::size_t& lines) {
+    std::cerr << "\033[" << lines << 'A' << std::flush;
+}
+inline void Term::cursor_down(const std::size_t& lines) {
+    std::cerr << "\033[" << lines << 'B' << std::flush;
+}
+inline void Term::cursor_right(const std::size_t& lines) {
+    std::cerr << "\033[" << lines << 'C' << std::flush;
+}
+inline void Term::cursor_left(const std::size_t& lines) {
+    std::cerr << "\033[" << lines << 'D' << std::flush;
+}
+inline void Term::cursor_next(const std::size_t& lines) {
+    std::cerr << "\033[" << lines << 'E' << std::flush;
+}
+inline void Term::cursor_prev(const std::size_t& lines) {
+    std::cerr << "\033[" << lines << 'F' << std::flush;
+}
+inline void Term::cursor_home() {
+    std::cerr << "\033[H" << std::flush;
+}
+inline void Term::cursor_position_report() {
+    std::cerr << "\033[6n" << std::flush;
+}
+inline void Term::cursor_off() {
+    std::cerr << "\033[?25l" << std::flush;
+}
+inline void Term::cursor_on() {
+    std::cerr << "\033[?25h" << std::flush;
+}
+inline void Term::cursor_move(const std::size_t& rows, const std::size_t& columns) {
+    if      (rows > 0) { Term::cursor_down(rows); }
+    else if (rows < 0) { Term::cursor_up(rows); }
+    
+    if      (columns > 0) { Term::cursor_right(columns); }
+    else if (columns < 0) { Term::cursor_left(columns); }
+}
+inline void Term::cursor_set(const std::size_t& row, const std::size_t& column) {
+    std::cerr << "\033[" << row << ';' << column << 'H' << std::flush;
+}
+inline void Term::cursor_set(const cursor_pos_t& pos) { Term::cursor_set(pos.row, pos.column); }
+
+/* for the love of all gods optimise this code */
+inline cursor_pos_t Term::cursor_position() {
+    struct termios term;
+    cursor_pos_t cursor_pos;
+
+    // Get the terminal attributes
+    tcgetattr(STDIN_FILENO, &term);
+
+    // Save the current terminal attributes
+    struct termios saved_term = term;
+
+    // Disable canonical mode and echo mode
+    term.c_lflag &= ~(ICANON | ECHO);
+
+    // Set the new terminal attributes
+    tcsetattr(STDIN_FILENO, TCSANOW, &term);
+
+    // Get the cursor position
+    std::cerr << "\033[6n" << std::flush;
+    char buf[32];
+    int i = 0;
+    while (i < 32) {
+        char c;
+        if (read(STDIN_FILENO, &c, 1) != 1) {
+            break;
+        }
+        buf[i++] = c;
+        if (c == 'R') {
+            break;
+        }
+    }
+    buf[i] = '\0';
+
+    // Parse the cursor position
+    if (sscanf(buf, "\033[%d;%dR", &cursor_pos.row, &cursor_pos.column) != 2) {
+        throw Term::Exception("Failed to parse cursor position\n");
+    }
+
+    // Restore the original terminal attributes
+    tcsetattr(STDIN_FILENO, TCSANOW, &saved_term);
+
+    return cursor_pos;
+}
+
+//void Term::screen_save()                            { std::cerr << "\0337\033[?1049h" << std::flush; }
+//void Term::screen_load()                            { std::cerr << "\033[?1049l\0338" << std::flush; }
+void Term::screen_save()                            { std::cerr << "\033[?47h" << std::flush; }
+void Term::screen_load()                            { std::cerr << "\033[?47l" << std::flush; }
+void Term::enter_alt_buffer()                       { std::cerr << "\033[?1049h" << std::flush; }
+void Term::exit_alt_buffer()                        { std::cerr << "\033[?1049l" << std::flush; }
+void Term::terminal_title(const std::string& title) { std::cerr << "\033]0;" + title + '\a' << std::flush; }
