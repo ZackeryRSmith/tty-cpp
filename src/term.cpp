@@ -31,6 +31,57 @@ bool Term::is_stdin_a_tty() { return is_a_tty(stdin); }
 bool Term::is_stdout_a_tty() { return is_a_tty(stdout); }
 bool Term::is_stderr_a_tty() { return is_a_tty(stderr); }
 
+inline int Term::enable_raw_mode() {
+    int fd = STDIN_FILENO;
+    struct termios term;
+    if (tcgetattr(fd, &term) == -1)
+        return -1;
+    term.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    term.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    term.c_cflag &= ~(CSIZE | PARENB);
+    term.c_cflag |= CS8;
+    term.c_oflag &= ~(OPOST);
+    term.c_cc[VMIN] = 1;
+    term.c_cc[VTIME] = 0;
+    if (tcsetattr(fd, TCSAFLUSH, &term) == -1)
+        return -1;
+    return 0;
+}
+
+inline int Term::disable_raw_mode() {
+    int fd = STDIN_FILENO;
+    struct termios term;
+    if (tcgetattr(fd, &term) == -1)
+        return -1;
+    term.c_lflag |= (ECHO | ICANON | IEXTEN | ISIG);
+    term.c_iflag |= (BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    term.c_cflag |= (CSIZE | PARENB);
+    term.c_cflag &= ~CS8;
+    term.c_oflag |= (OPOST);
+    term.c_cc[VMIN] = 1;
+    term.c_cc[VTIME] = 0;
+    if (tcsetattr(fd, TCSAFLUSH, &term) == -1)
+        return -1;
+    return 0;
+}
+
+inline bool Term::is_raw_mode() {
+    int fd = STDIN_FILENO;
+    struct termios term;
+
+    if (tcgetattr(fd, &term) == -1)
+        return false;
+
+    // check if the terminal settings match raw mode conditions
+    bool is_raw = !((term.c_lflag & (ECHO | ICANON | IEXTEN | ISIG)) &&
+                   (term.c_iflag & (BRKINT | ICRNL | INPCK | ISTRIP | IXON)) &&
+                   (term.c_cflag & (CSIZE | PARENB)) &&
+                   !(term.c_cflag & CS8) &&
+                   (term.c_oflag & OPOST));
+
+    return is_raw;
+}
+
 termios Term::get_term_attributes() {
     struct termios term;
     if (tcgetattr(STDIN_FILENO, &term) != 0)

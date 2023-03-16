@@ -42,6 +42,14 @@ bool is_stdin_a_tty();
 bool is_stdout_a_tty();
 bool is_stderr_a_tty();
 
+inline int enable_raw_mode();
+inline int disable_raw_mode();
+inline bool is_raw_mode();
+
+std::pair<std::size_t, std::size_t> get_size(); // get terminal size (column, row)
+bool stdin_connected();                         // check if stdin is connected to a TTY
+bool stdout_connected();                        // check if stdout is connect to a TTY
+
 // clear functions
 inline void clear_screen();  // clear screen
 inline void clear_to_eol();  // clear from cursor position to the end of the line
@@ -52,10 +60,6 @@ inline void clear_line();    // clear the entire line where the cursor is locate
 
 // clear from a specific (Y, X) and a custom (width, height) *idea from Newtrodit*
 inline void clear_partial(const std::size_t&, const std::size_t&, const std::size_t&, const std::size_t&); 
-
-std::pair<std::size_t, std::size_t> get_size(); // get terminal size (column, row)
-bool stdin_connected(); // check if stdin is connected to a TTY
-bool stdout_connected(); // check if stdout is connect to a TTY
 
 // terminal cursor control 
 inline void set_row(const std::size_t&);        // move cursor to row       
