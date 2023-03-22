@@ -3,8 +3,9 @@
 
 std::string key_name(Key key) {
     switch (key) {
+        case Key::ESC: return "ESC";
+        case Key::DEL: return "DELETE";
         case Key::ENTER: return "ENTER";
-        // Add other special keys and their names here.
         case Key::UP_ARROW: return "UP ARROW";
         case Key::DOWN_ARROW: return "DOWN ARROW";
         case Key::LEFT_ARROW: return "LEFT ARROW";
@@ -19,14 +20,13 @@ std::string key_name(Key key) {
 }
 
 int main() {
+    RawModeGuard raw_mode_guard;
     while (true) {
         Key pressed_key = Term::getkey();
 
-        if (pressed_key == Key::CTRL_C) {
+        std::cout << "Key pressed: " << key_name(pressed_key) << std::endl;
+        if (pressed_key == Key::CTRL_C)
             break; // Exit the loop
-        } else {
-            std::cout << "Key pressed: " << key_name(pressed_key) << std::endl;
-        }
     }
 
     return 0;
