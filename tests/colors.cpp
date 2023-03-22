@@ -5,8 +5,8 @@
 int main() {
     try {
     // tty-cpp version and link to the repo
-    std::cout << Term::style(Term::Style::BOLD) << "Running tty-cpp version: " << Term::style(Term::Style::RESET) << Term::Version 
-              << Term::style(Term::Style::BOLD) << "\nRepo: " << Term::style(Term::Style::RESET) << Term::Repo 
+    std::cout << Term::style(Term::Style::BOLD) << "Running tty-cpp version: " << Term::style(Term::Style::RESET) << Term::VERSION 
+              << Term::style(Term::Style::BOLD) << "\nRepo: " << Term::style(Term::Style::RESET) << Term::REPO 
               << std::endl << std::endl;
 
     if (Term::stdout_connected()) 
