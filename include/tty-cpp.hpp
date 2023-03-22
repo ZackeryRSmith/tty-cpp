@@ -1,6 +1,14 @@
 
 
-// begin --- color.cpp --- 
+// begin --- headers --- 
+
+
+
+// end --- headers --- 
+
+
+
+// begin --- helpers.cpp --- 
 
 
 
@@ -14,23 +22,16 @@
 #include <stdexcept>
 #include <unistd.h>
 #include <termios.h>
-
-struct cursor_pos_t {
-    int row;
-    int column;
-};
+#include <iostream>
 
 namespace Term {
-const std::string Version = "1.0.0";
-const std::string Repo = "https://github.com/ZackeryRSmith/tty-cpp";
+const std::string VERSION = "1.5.0";
+const std::string REPO = "https://github.com/ZackeryRSmith/tty-cpp";
+
 
 /********************* NAMESPACE PRIVATE *********************/
 namespace Private {
   std::string getenv(const std::string&);
-
-  // returns the terminal size as (rows, columns) / (Y, X), throws a runtime error
-  // if the console is not connected
-  std::pair<std::size_t, std::size_t> get_term_size();
 }
 /********************* NAMESPACE PRIVATE *********************/
 
@@ -44,48 +45,18 @@ private:
 };
 /********************** EXCEPTION CLASS **********************/
 
-termios get_term_attributes();
 bool is_a_tty(const FILE*);
 bool is_stdin_a_tty();
 bool is_stdout_a_tty();
 bool is_stderr_a_tty();
+termios get_term_attributes();
 
-// clear functions
-inline void clear_screen();  // clear screen
-inline void clear_to_eol();  // clear from cursor position to the end of the line
-inline void clear_to_eof();  // clear from cursor position to the end of the screen
-inline void clear_to_sol();  // clear from cursor position to the start of the line
-inline void clear_to_sof();  // clear from cursor position to the start of the screen
-inline void clear_line();    // clear the entire line where the cursor is located
+inline void enable_raw_mode();
+inline void disable_raw_mode();
+inline bool is_raw_mode();
 
-// clear from a specific (Y, X) and a custom (width, height) *idea from Newtrodit*
-inline void clear_partial(const std::size_t&, const std::size_t&, const std::size_t&, const std::size_t&); 
-
-std::pair<std::size_t, std::size_t> get_size(); // get terminal size (column, row)
-bool stdin_connected(); // check if stdin is connected to a TTY
+bool stdin_connected();  // check if stdin is connected to a TTY
 bool stdout_connected(); // check if stdout is connect to a TTY
-
-// terminal cursor control 
-inline void set_row(const std::size_t&);        // move cursor to row       
-inline void set_column(const std::size_t&);     // move cursor to column
-inline void cursor_up(const std::size_t& = 1);    // move the cursor up N lines (default N=1)
-inline void cursor_down(const std::size_t& = 1);  // move the cursor down N lines (default N=1)
-inline void cursor_right(const std::size_t& = 1); // move the cursor forward N columns (default N=1)
-inline void cursor_left(const std::size_t& = 1);  // move the cursor backward N columns (default N=1)
-inline void cursor_next(const std::size_t& = 1);  // moves cursor to beginning of next line, N lines down (default N=1)
-inline void cursor_prev(const std::size_t& = 1);  // moves cursor to beginning of previous line, N lines up (default N=1)
-inline void cursor_home();                        // home cursor to (0, 0)
-inline void cursor_position_report();           // the ANSI code to generate a cursor position report
-inline void cursor_off();                       // hide cursor
-inline void cursor_on();                        // show cursor
-
-inline void cursor_move(const std::size_t&, const std::size_t&); // move cursor by the given row and column
-inline void cursor_set(const std::size_t&, const std::size_t&);  // move cursor to given row and column
-inline void cursor_set(const cursor_pos_t&);
-inline cursor_pos_t cursor_position();                           // returns the current cursor position (row, column)
-
-void screen_save();                            // save screen state
-void screen_load();                            // restore last saved screen state
 void enter_alt_buffer();                       // enter the alternate terminal buffer
 void exit_alt_buffer();                        // exit the alternate terminal buffer
 void terminal_title(const std::string& title); // change the terminal title (supported by only a few terminals)
@@ -95,6 +66,356 @@ void terminal_title(const std::string& title); // change the terminal title (sup
 
 
 // end --- term.h --- 
+
+
+
+// begin --- helpers.h --- 
+
+#pragma once
+
+/* guard to make sure raw mode is exited on program exit */
+class RawModeGuard {
+public:
+    RawModeGuard() { Term::enable_raw_mode(); }
+    ~RawModeGuard() { Term::disable_raw_mode(); }
+};
+
+/* scope guard which executes a function upon deconstruction */
+class ScopeGuard {
+public:
+    ScopeGuard(std::function<void()> f) : func(f) {}
+    ~ScopeGuard() { func(); }
+
+private:
+    std::function<void()> func;
+};
+
+
+
+
+// end --- helpers.h --- 
+
+
+
+// kind of not needed for right now :)
+
+
+// end --- helpers.cpp --- 
+
+
+
+// begin --- input.cpp --- 
+
+
+
+// begin --- input.h --- 
+
+#pragma once
+
+enum class Key {
+    UNKNOWN = -1,
+    // ASCII values for control characters
+    NUL = 0,
+    SOH = 1,
+    STX = 2,
+    ETX = 3,
+    EOT = 4,
+    ENQ = 5,
+    ACK = 6,
+    BEL = 7,
+    BS = 8,
+    HT = 9,
+    LF = 10,
+    VT = 11,
+    FF = 12,
+    CR = 13,
+    SO = 14,
+    SI = 15,
+    DLE = 16,
+    DC1 = 17,
+    DC2 = 18,
+    DC3 = 19,
+    DC4 = 20,
+    NAK = 21,
+    SYN = 22,
+    ETB = 23,
+    CAN = 24,
+    EM = 25,
+    SUB = 26,
+    ESC = 27,
+    FS = 28,
+    GS = 29,
+    RS = 30,
+    US = 31,
+    DEL = 32,
+    // Regular characters (ASCII values 32 to 126)
+    SPACE = 32,
+    EXCLAMATION_MARK = 33,
+    // ...
+    TILDE = 126,
+    // CTRL keys combinations
+    CTRL_A = 128,
+    CTRL_B,
+    CTRL_C,
+    CTRL_D,
+    CTRL_E,
+    CTRL_F,
+    CTRL_G,
+    CTRL_H,
+    CTRL_I,
+    CTRL_J,
+    CTRL_K,
+    CTRL_L,
+    CTRL_M,
+    CTRL_N,
+    CTRL_O,
+    CTRL_P,
+    CTRL_Q,
+    CTRL_R,
+    CTRL_S,
+    CTRL_T, 
+    CTRL_U,
+    CTRL_V,
+    CTRL_W,
+    CTRL_X,
+    CTRL_Y,
+    CTRL_Z,
+    // Add ASCII characters directly
+    A = 'A',
+    B = 'B',
+    C = 'C',
+    D = 'D',
+    E = 'E',
+    F = 'F',
+    G = 'G',
+    H = 'H',
+    I = 'I',
+    J = 'J',
+    K = 'K',
+    L = 'L',
+    M = 'M',
+    N = 'N',
+    O = 'O',
+    P = 'P',
+    Q = 'Q',
+    R = 'R',
+    S = 'S',
+    T = 'T',
+    U = 'U',
+    V = 'V',
+    W = 'W',
+    X = 'X',
+    Y = 'Y',
+    Z = 'Z',
+    a = 'a',
+    b = 'b',
+    c = 'c',
+    d = 'd',
+    e = 'e',
+    f = 'f',
+    g = 'g',
+    h = 'h',
+    i = 'i',
+    j = 'j',
+    k = 'k',
+    l = 'l',
+    m = 'm',
+    n = 'n',
+    o = 'o',
+    p = 'p',
+    q = 'q',
+    r = 'r',
+    s = 's',
+    t = 't',
+    u = 'u',
+    v = 'v',
+    w = 'w',
+    x = 'x',
+    y = 'y',
+    z = 'z',
+    // Special keys
+    ENTER = 1000,
+    UP_ARROW,
+    DOWN_ARROW,
+    LEFT_ARROW,
+    RIGHT_ARROW,
+    CTRL_BASE,
+    // Modifier keys
+    ALT,
+    SHIFT,
+    // Add more keys as needed
+};
+
+namespace Term {
+Key getkey();
+} // namespace Term
+
+
+// end --- input.h --- 
+
+
+
+Key Term::getkey() {
+    char c;
+
+    if (read(STDIN_FILENO, &c, 1) == 1) {
+        if (c == '\x1b') {
+            char seq[4];
+
+            if (read(STDIN_FILENO, &seq[0], 1) != 1) return Key::ESC;
+            if (read(STDIN_FILENO, &seq[1], 1) != 1) return Key::ESC;
+
+            if (seq[0] == '[') {
+                if (seq[1] >= '0' && seq[1] <= '9') {
+                    if (read(STDIN_FILENO, &seq[2], 1) != 1) return Key::ESC;
+                    if (seq[2] == '~') {
+                        if (seq[1] == '3') return Key::DEL;
+                    }
+                } else {
+                    switch (seq[1]) {
+                        case 'A': return Key::UP_ARROW;
+                        case 'B': return Key::DOWN_ARROW;
+                        case 'C': return Key::RIGHT_ARROW;
+                        case 'D': return Key::LEFT_ARROW;
+                    }
+                }
+            }
+        } else if (c == '\r') {
+            return Key::ENTER;
+        } else if (c == '\x7f') {
+            return Key::BS;
+        } else if (c >= 1 && c <= 26) {
+            return static_cast<Key>(static_cast<int>(Key::CTRL_A) + (c - 1));
+        } else {
+            return static_cast<Key>(c);
+        }
+    }
+
+    return Key::UNKNOWN;
+}
+
+
+// end --- input.cpp --- 
+
+
+
+// begin --- screen.cpp --- 
+
+
+
+// begin --- cursor.h --- 
+
+#pragma once
+
+struct cursor_pos_t {
+    std::size_t row;
+    std::size_t column;
+};
+
+namespace Cursor {   
+inline void set_row(const std::size_t&);       // move to row
+inline void set_column(const std::size_t&);    // move to column
+inline void up(const std::size_t& = 1);        // move up N lines (default N=1)
+inline void down(const std::size_t& = 1);      // move down N lines (default N=1)
+inline void right(const std::size_t& = 1);     // move right N columns (default N=1)
+inline void left(const std::size_t& = 1);      // move left N columns (default N=1)
+inline void next_line(const std::size_t& = 1); // move to the beginning of next line, N lines down (default N=1)
+inline void prev_line(const std::size_t& = 1); // move to the beginning of previous line, N lines up (default N=1)
+inline void home();                            // home cursor to (0, 0)
+inline void position_report();                 // generate a cursor position report
+inline void hide();                            // hide cursor
+inline void show();                            // show cursor
+
+inline void move(const std::size_t&, const std::size_t&); // move cursor by the given row and column
+inline void set(const std::size_t&, const std::size_t&);  // move cursor to given row and column
+inline void set(const cursor_pos_t&);
+inline cursor_pos_t position();                           // returns the current cursor position (row, column)
+} // namespace Cursor
+
+
+// end --- cursor.h --- 
+
+
+
+// begin --- screen.h --- 
+
+#pragma once
+
+namespace Screen {
+struct Size {
+    std::size_t rows;
+    std::size_t columns;
+};
+
+inline void clear();         // clear screen
+inline void clear_to_eol();  // clear from cursor position to the end of the line
+inline void clear_to_eof();  // clear from cursor position to the end of the screen
+inline void clear_to_sol();  // clear from cursor position to the start of the line
+inline void clear_to_sof();  // clear from cursor position to the start of the screen
+inline void clear_line();    // clear the entire line where the cursor is located
+
+// clear from a specific (Y, X) and a custom (width, height) *idea from Newtrodit*
+inline void clear_partial(const std::size_t&, const std::size_t&, const std::size_t&, const std::size_t&); 
+
+void save();         // save screen state
+void restore();      // restore last saved screen state
+Screen::Size size(); // get terminal screen size
+} // namespace Screen 
+
+
+// end --- screen.h --- 
+
+
+
+#include <cerrno>
+#include <cstdio>
+#include <string>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <iostream>
+#include <termios.h>
+
+inline void Screen::clear()         { std::cerr << "\033[2J\033[H" << std::flush; }
+inline void Screen::clear_to_eol()  { std::cerr << "\033[0K" << std::flush; }
+inline void Screen::clear_to_eof()  { std::cerr << "\033[0J" << std::flush; }
+inline void Screen::clear_to_sol()  { std::cerr << "\033[1K" << std::flush; }
+inline void Screen::clear_to_sof()  { std::cerr << "\033[1J" << std::flush; }
+inline void Screen::clear_line()    { std::cerr << "\033[2K" << std::flush; }
+inline void Screen::clear_partial(const std::size_t& row, const std::size_t& column, const std::size_t& width, const std::size_t& height) {
+    cursor_pos_t oldpos = Cursor::position();
+    std::string spaces(width, ' ');
+
+    for (int i = 0; i < height; i++) {
+        Cursor::set(row + i, column);
+        std::cout << spaces;
+    }
+    Cursor::set(oldpos.row, oldpos.column);
+}
+
+
+
+//void Screen::save()         { std::cerr << "\033[?1049h" << std::flush; }
+//void Screen::restore()      { std::cerr << "\033[?1049l" << std::flush; }
+void Screen::save()         { std::cerr << "\033[?47h" << std::flush; }
+void Screen::restore()      { std::cerr << "\033[?47l" << std::flush; }
+Screen::Size Screen::size() {
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)
+        throw Term::Exception("Couldn't get terminal size. " + std::string(Term::is_stdout_a_tty() ? "" : "(STDOUT IS NOT A TTY!)"));
+    else {
+        Screen::Size term_size;
+        term_size.rows = ws.ws_row;
+        term_size.columns = ws.ws_col;
+        return term_size;
+    }
+}
+
+
+// end --- screen.cpp --- 
+
+
+
+// begin --- color.cpp --- 
 
 
 
@@ -130,17 +451,17 @@ enum class ColorBit4 : std::uint8_t {
     WHITE_BRIGHT   = 67
 };
 
-enum Style : std::uint8_t {
-    RESET,
-    BOLD,
-    DIM,
-    ITALIC,
-    UNDERLINE,
-    BLINK,
-    BLINK_RAPID,
-    CONCEL,
-    CROSSED, // mostly supported
-    OVERLINE = 53 // barely supported 
+enum class Style : std::uint8_t {
+    RESET         = 0,
+    BOLD          = 1,
+    DIM           = 2,
+    ITALIC        = 3,
+    UNDERLINE     = 4,
+    BLINK         = 5,
+    REVERSE       = 6,
+    CONCEAL       = 7,
+    STRIKETHROUGH = 8, // mostly supported
+    OVERLINE      = 53 // barely supported 
 };
 
 // class for representing 24bit color
@@ -220,6 +541,8 @@ std::string style(Style style); // set style
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <iostream>
+#include <sstream>
+#include <string>
 
 
 /****************** GENERAL COLOR FUNCTIONS ******************/
@@ -433,7 +756,21 @@ std::string Term::color_bg(Term::rgb rgb) {
     return "\033[48;2;" + std::to_string(rgb.r) + ';' + std::to_string(rgb.g) + ';' + std::to_string(rgb.b) + 'm';
 }
 
-std::string Term::style(Term::Style style) { return "\033[" + std::to_string((std::uint8_t)style) + 'm'; }
+std::string Term::style(Term::Style style) {
+    switch (style) { /* improve me, concatenation doesn't work for some reason */
+        case Style::RESET:         return "\033[0m";
+        case Style::BOLD:          return "\033[1m";
+        case Style::DIM:           return "\033[2m";
+        case Style::ITALIC:        return "\033[3m";
+        case Style::UNDERLINE:     return "\033[4m";
+        case Style::BLINK:         return "\033[5m";
+        case Style::REVERSE:       return "\033[7m";
+        case Style::CONCEAL:       return "\033[8m";
+        case Style::STRIKETHROUGH: return "\033[9m";
+        case Style::OVERLINE:      return "\033[53m";
+        default:                   return "";
+    }
+}
 
 
 
@@ -453,6 +790,9 @@ std::string Term::style(Term::Style style) { return "\033[" + std::to_string((st
 #include <iostream>
 #include <termios.h>
 
+static struct termios original_termios;
+static bool __is_raw_mode_enabled = false; // weird name to avoid possible conflict
+
 /********************* NAMESPACE PRIVATE *********************/
 std::string Term::Private::getenv(const std::string& env) {
     if (std::getenv(env.c_str()) != nullptr) 
@@ -460,22 +800,13 @@ std::string Term::Private::getenv(const std::string& env) {
     else 
         return std::string();
 }
-
-std::pair<std::size_t, std::size_t> Term::Private::get_term_size() {
-    struct winsize ws;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)
-        throw Term::Exception("Couldn't get terminal size. Are we even connected to a TTY?");
-    else
-        return std::pair<std::size_t, std::size_t>(ws.ws_col, ws.ws_row);
-}
 /*************************************************************/
 
 
 bool Term::is_a_tty(const FILE* fd) { return isatty(fileno(const_cast<FILE*>(fd))); }
-bool Term::is_stdin_a_tty() { return is_a_tty(stdin); }
-bool Term::is_stdout_a_tty() { return is_a_tty(stdout); }
-bool Term::is_stderr_a_tty() { return is_a_tty(stderr); }
-
+bool Term::is_stdin_a_tty()         { return is_a_tty(stdin); }
+bool Term::is_stdout_a_tty()        { return is_a_tty(stdout); }
+bool Term::is_stderr_a_tty()        { return is_a_tty(stderr); }
 termios Term::get_term_attributes() {
     struct termios term;
     if (tcgetattr(STDIN_FILENO, &term) != 0)
@@ -483,77 +814,109 @@ termios Term::get_term_attributes() {
     return term;
 }
 
-std::pair<std::size_t, std::size_t> Term::get_size() { return Private::get_term_size(); }
-bool Term::stdin_connected() { return Term::is_stdin_a_tty(); }
+inline void Term::enable_raw_mode() {
+    if (__is_raw_mode_enabled)
+        return;
+    struct termios raw;
+
+    tcgetattr(STDIN_FILENO, &original_termios);
+    raw = original_termios;
+    raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
+    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    raw.c_cflag |= (CS8);
+    //raw.c_oflag &= ~(OPOST);
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+    __is_raw_mode_enabled = true;
+}
+
+inline void Term::disable_raw_mode() {
+    if (!__is_raw_mode_enabled)
+        return;
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);
+    __is_raw_mode_enabled = false;
+}
+
+inline bool Term::is_raw_mode() {
+    struct termios current_termios;
+    tcgetattr(STDIN_FILENO, &current_termios);
+
+    return __is_raw_mode_enabled && (current_termios.c_lflag & ICANON) == 0;
+}
+
+
+bool Term::stdin_connected()  { return Term::is_stdin_a_tty(); }
 bool Term::stdout_connected() { return Term::is_stdout_a_tty(); }
 
-inline void Term::clear_screen()  { std::cerr << "\033[2J\033[H" << std::flush; }
-inline void Term::clear_to_eol()  { std::cerr << "\033[0K" << std::flush; }
-inline void Term::clear_to_eof()  { std::cerr << "\033[0J" << std::flush; }
-inline void Term::clear_to_sol()  { std::cerr << "\033[1K" << std::flush; }
-inline void Term::clear_to_sof()  { std::cerr << "\033[1J" << std::flush; }
-inline void Term::clear_line()    { std::cerr << "\033[2K" << std::flush; }
-inline void Term::clear_partial(const std::size_t& row, const std::size_t& column, const std::size_t& width, const std::size_t& height) {
-    cursor_pos_t oldpos = Term::cursor_position();
-    std::string spaces(width, ' ');
+//void Term::screen_save()                            { std::cerr << "\0337\033[?1049h" << std::flush; }
+//void Term::screen_load()                            { std::cerr << "\033[?1049l\0338" << std::flush; }
+void Term::enter_alt_buffer()                       { std::cerr << "\033[?1049h" << std::flush; }
+void Term::exit_alt_buffer()                        { std::cerr << "\033[?1049l" << std::flush; }
+void Term::terminal_title(const std::string& title) { std::cerr << "\033]0;" + title + '\a' << std::flush; }
 
-    for (int i = 0; i < height; i++) {
-        Term::cursor_set(row + i, column);
-        std::cout << spaces;
-    }
-    Term::cursor_set(oldpos.row, oldpos.column);
-}
 
-inline void Term::set_row(const std::size_t& row) {
-    cursor_pos_t oldpos = Term::cursor_position(); Term::cursor_set(row, oldpos.column);
+// end --- term.cpp --- 
+
+
+
+// begin --- cursor.cpp --- 
+
+
+
+inline void Cursor::set_row(const std::size_t& row) {
+    cursor_pos_t oldpos = Cursor::position(); 
+    Cursor::set(row, oldpos.column);
 }
-inline void Term::set_column(const std::size_t& column) {
+inline void Cursor::set_column(const std::size_t& column) {
     std::cerr << "\033[" << column << 'G' << std::flush;
 }
-inline void Term::cursor_up(const std::size_t& lines) {
+inline void Cursor::up(const std::size_t& lines) {
     std::cerr << "\033[" << lines << 'A' << std::flush;
 }
-inline void Term::cursor_down(const std::size_t& lines) {
+inline void Cursor::down(const std::size_t& lines) {
     std::cerr << "\033[" << lines << 'B' << std::flush;
 }
-inline void Term::cursor_right(const std::size_t& lines) {
+inline void Cursor::right(const std::size_t& lines) {
     std::cerr << "\033[" << lines << 'C' << std::flush;
 }
-inline void Term::cursor_left(const std::size_t& lines) {
+inline void Cursor::left(const std::size_t& lines) {
     std::cerr << "\033[" << lines << 'D' << std::flush;
 }
-inline void Term::cursor_next(const std::size_t& lines) {
+inline void Cursor::next_line(const std::size_t& lines) {
     std::cerr << "\033[" << lines << 'E' << std::flush;
 }
-inline void Term::cursor_prev(const std::size_t& lines) {
+inline void Cursor::prev_line(const std::size_t& lines) {
     std::cerr << "\033[" << lines << 'F' << std::flush;
 }
-inline void Term::cursor_home() {
+inline void Cursor::home() {
     std::cerr << "\033[H" << std::flush;
 }
-inline void Term::cursor_position_report() {
+inline void Cursor::position_report() {
     std::cerr << "\033[6n" << std::flush;
 }
-inline void Term::cursor_off() {
+inline void Cursor::hide() {
     std::cerr << "\033[?25l" << std::flush;
 }
-inline void Term::cursor_on() {
+inline void Cursor::show() {
     std::cerr << "\033[?25h" << std::flush;
 }
-inline void Term::cursor_move(const std::size_t& rows, const std::size_t& columns) {
-    if      (rows > 0) { Term::cursor_down(rows); }
-    else if (rows < 0) { Term::cursor_up(rows); }
+inline void Cursor::move(const std::size_t& rows, const std::size_t& columns) {
+    if      (rows > 0) { Cursor::down(rows); }
+    else if (rows < 0) { Cursor::up(rows); }
     
-    if      (columns > 0) { Term::cursor_right(columns); }
-    else if (columns < 0) { Term::cursor_left(columns); }
+    if      (columns > 0) { Cursor::right(columns); }
+    else if (columns < 0) { Cursor::left(columns); }
 }
-inline void Term::cursor_set(const std::size_t& row, const std::size_t& column) {
+inline void Cursor::set(const std::size_t& row, const std::size_t& column) {
     std::cerr << "\033[" << row << ';' << column << 'H' << std::flush;
 }
-inline void Term::cursor_set(const cursor_pos_t& pos) { Term::cursor_set(pos.row, pos.column); }
+inline void Cursor::set(const cursor_pos_t& pos) {
+    Cursor::set(pos.row, pos.column);
+}
 
-/* for the love of all gods optimise this code */
-inline cursor_pos_t Term::cursor_position() {
+inline cursor_pos_t Cursor::position() {
     struct termios term;
     cursor_pos_t cursor_pos;
 
@@ -586,9 +949,13 @@ inline cursor_pos_t Term::cursor_position() {
     buf[i] = '\0';
 
     // Parse the cursor position
-    if (sscanf(buf, "\033[%d;%dR", &cursor_pos.row, &cursor_pos.column) != 2) {
+    int row, column;
+    if (sscanf(buf, "\033[%d;%dR", &row, &column) != 2) {
         throw Term::Exception("Failed to parse cursor position\n");
     }
+
+    cursor_pos.row = row;
+    cursor_pos.column = column;
 
     // Restore the original terminal attributes
     tcsetattr(STDIN_FILENO, TCSANOW, &saved_term);
@@ -596,14 +963,6 @@ inline cursor_pos_t Term::cursor_position() {
     return cursor_pos;
 }
 
-//void Term::screen_save()                            { std::cerr << "\0337\033[?1049h" << std::flush; }
-//void Term::screen_load()                            { std::cerr << "\033[?1049l\0338" << std::flush; }
-void Term::screen_save()                            { std::cerr << "\033[?47h" << std::flush; }
-void Term::screen_load()                            { std::cerr << "\033[?47l" << std::flush; }
-void Term::enter_alt_buffer()                       { std::cerr << "\033[?1049h" << std::flush; }
-void Term::exit_alt_buffer()                        { std::cerr << "\033[?1049l" << std::flush; }
-void Term::terminal_title(const std::string& title) { std::cerr << "\033]0;" + title + '\a' << std::flush; }
 
-
-// end --- term.cpp --- 
+// end --- cursor.cpp --- 
 
