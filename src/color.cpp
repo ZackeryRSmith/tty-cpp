@@ -1,10 +1,12 @@
-#include "term.h"
-#include "color.h"
+#include "headers/term.h"
+#include "headers/color.h"
 
 #include <cerrno>
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <iostream>
+#include <sstream>
+#include <string>
 
 
 /****************** GENERAL COLOR FUNCTIONS ******************/
@@ -218,5 +220,19 @@ std::string Term::color_bg(Term::rgb rgb) {
     return "\033[48;2;" + std::to_string(rgb.r) + ';' + std::to_string(rgb.g) + ';' + std::to_string(rgb.b) + 'm';
 }
 
-std::string Term::style(Term::Style style) { return "\033[" + std::to_string((std::uint8_t)style) + 'm'; }
+std::string Term::style(Term::Style style) {
+    switch (style) { /* improve me, concatenation doesn't work for some reason */
+        case Style::RESET:         return "\033[0m";
+        case Style::BOLD:          return "\033[1m";
+        case Style::DIM:           return "\033[2m";
+        case Style::ITALIC:        return "\033[3m";
+        case Style::UNDERLINE:     return "\033[4m";
+        case Style::BLINK:         return "\033[5m";
+        case Style::REVERSE:       return "\033[7m";
+        case Style::CONCEAL:       return "\033[8m";
+        case Style::STRIKETHROUGH: return "\033[9m";
+        case Style::OVERLINE:      return "\033[53m";
+        default:                   return "";
+    }
+}
 
