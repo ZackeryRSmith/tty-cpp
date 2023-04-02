@@ -1,6 +1,5 @@
 heady
 .DS_Store
-tests/a.out
 Build
 before.txt
 after.txt
