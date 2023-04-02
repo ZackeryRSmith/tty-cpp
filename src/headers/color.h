@@ -84,7 +84,9 @@ rgb rgb_empty();
 std::uint16_t rgb_compare(rgb, rgb);
 
 ColorBit4 rgb_to_bit4(rgb);
+ColorBit4 rgb_to_bit4(std::uint8_t, std::uint8_t, std::uint8_t);
 uint8_t rgb_to_bit8(rgb);
+uint8_t rgb_to_bit8(std::uint8_t, std::uint8_t, std::uint8_t);
 
 bool bit24_support();
 // returns ANSI code for 24bit colors (if not supported these functions will fall back to 8bit)
