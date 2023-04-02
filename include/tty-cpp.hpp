@@ -248,12 +248,15 @@ enum class Key {
 
 namespace Term {
 Key getkey();
+int keyhit();
 } // namespace Term
 
 
 // end --- input.h --- 
 
 
+#include <fcntl.h>
+#include <sys/ioctl.h>
 
 Key Term::getkey() {
     char c;
@@ -292,6 +295,13 @@ Key Term::getkey() {
     }
 
     return Key::UNKNOWN;
+}
+
+int Term::keyhit() {
+    int bytesWaiting;
+    ioctl(STDIN_FILENO, FIONREAD, &bytesWaiting);
+
+    return bytesWaiting;
 }
 
 
@@ -507,7 +517,9 @@ rgb rgb_empty();
 std::uint16_t rgb_compare(rgb, rgb);
 
 ColorBit4 rgb_to_bit4(rgb);
+ColorBit4 rgb_to_bit4(std::uint8_t, std::uint8_t, std::uint8_t);
 uint8_t rgb_to_bit8(rgb);
+uint8_t rgb_to_bit8(std::uint8_t, std::uint8_t, std::uint8_t);
 
 bool bit24_support();
 // returns ANSI code for 24bit colors (if not supported these functions will fall back to 8bit)
@@ -693,6 +705,9 @@ Term::ColorBit4 Term::rgb_to_bit4(Term::rgb color) {
         color_result = ColorBit4::WHITE_BRIGHT;
     return color_result;
 }
+Term::ColorBit4 Term::rgb_to_bit4(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    return Term::rgb_to_bit4(rgb(r, g, b));
+}
 
 std::uint8_t Term::rgb_to_bit8(rgb color) {
     if (color.empty) return 0;
@@ -718,6 +733,9 @@ std::uint8_t Term::rgb_to_bit8(rgb color) {
 
     // normal color space
     return 16 + 36 * (color.r / 51) + 6 * (color.g / 51) + (color.b / 51);
+}
+std::uint8_t Term::rgb_to_bit8(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    return Term::rgb_to_bit8(rgb(r, g, b));
 }
 /*************************************************************/
 
