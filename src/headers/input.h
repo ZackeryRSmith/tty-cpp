@@ -136,4 +136,5 @@ enum class Key {
 
 namespace Term {
 Key getkey();
+int keyhit();
 } // namespace Term

@@ -1,5 +1,7 @@
 #include "headers/term.h"
 #include "headers/input.h"
+#include <fcntl.h>
+#include <sys/ioctl.h>
 
 Key Term::getkey() {
     char c;
@@ -38,4 +40,11 @@ Key Term::getkey() {
     }
 
     return Key::UNKNOWN;
+}
+
+int Term::keyhit() {
+    int bytesWaiting;
+    ioctl(STDIN_FILENO, FIONREAD, &bytesWaiting);
+
+    return bytesWaiting;
 }
