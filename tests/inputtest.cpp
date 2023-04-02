@@ -21,6 +21,17 @@ std::string key_name(Key key) {
 
 int main() {
     RawModeGuard raw_mode_guard;
+    
+    std::cout << Term::style(Term::Style::BOLD) << "Running tty-cpp version: " << Term::style(Term::Style::RESET) << Term::VERSION 
+              << Term::style(Term::Style::BOLD) << "\nRepo: " << Term::style(Term::Style::RESET) << Term::REPO 
+              << std::endl << std::endl;
+
+    if (Term::stdout_connected()) 
+        std::cout << Term::color_fg(Term::ColorBit4::GREEN) << "Standard output is attached to a terminal." << std::endl << std::endl;
+    else
+        std::cout << Term::color_fg(Term::ColorBit4::RED) << "Standard output is not attached to a terminal." << std::endl << std::endl;
+    std::cout << Term::color_fg(Term::ColorBit4::DEFAULT);
+    
     while (true) {
         Key pressed_key = Term::getkey();
 
