@@ -15,9 +15,10 @@ Key Term::getkey() {
 
             if (seq[0] == '[') {
                 if (seq[1] >= '0' && seq[1] <= '9') {
-                    if (read(STDIN_FILENO, &seq[2], 1) != 1) return Key::ESC;
                     if (seq[2] == '~') {
-                        if (seq[1] == '3') return Key::DEL;
+                        switch (seq[1]) {
+                            case '3': return Key::DEL;
+                        }
                     }
                 } else {
                     switch (seq[1]) {
@@ -30,8 +31,6 @@ Key Term::getkey() {
             }
         } else if (c == '\r') {
             return Key::ENTER;
-        } else if (c == '\x7f') {
-            return Key::BS;
         } else if (c >= 1 && c <= 26) {
             return static_cast<Key>(static_cast<int>(Key::CTRL_A) + (c - 1));
         } else {

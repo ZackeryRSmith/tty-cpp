@@ -5,6 +5,7 @@ std::string key_name(Key key) {
     switch (key) {
         case Key::ESC: return "ESC";
         case Key::DEL: return "DELETE";
+        case Key::SPACE: return "SPACE";
         case Key::ENTER: return "ENTER";
         case Key::UP_ARROW: return "UP ARROW";
         case Key::DOWN_ARROW: return "DOWN ARROW";
