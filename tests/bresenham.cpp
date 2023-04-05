@@ -19,7 +19,7 @@ void plot_line_low(int x0, int y0,
     int y = y0;
 
     for (int x = x0; x < x1; x++) {
-        Term::cursor_set(y, x);
+        Cursor::set(y, x);
         std::cout << ch << std::flush;
 
         if (D > 0) {
@@ -45,7 +45,7 @@ void plot_line_high(int x0, int y0,
     int x = x0;
     
     for (int y = y0; y < y1; y++) {
-        Term::cursor_set(y, x);
+        Cursor::set(y, x);
         std::cout << ch << std::flush;
         
         if (D > 0) {
@@ -61,7 +61,7 @@ void plot_line_high(int x0, int y0,
 void plot_line(int x0, int y0, 
                int x1, int y1,
                const std::string& ch = "#") {
-    cursor_pos_t oldpos = Term::cursor_position();
+    cursor_pos_t oldpos = Cursor::position();
 
     if (abs(int(y1 - y0)) < abs(int(x1 - x0))) {
         if (x0 > x1) {
@@ -77,16 +77,16 @@ void plot_line(int x0, int y0,
         }
     }
 
-    Term::cursor_set(oldpos);
+    Cursor::set(oldpos);
 }
 
 int main() {
     try {
-    Term::clear_screen();
+    Screen::clear();
 
     // tty-cpp version and link to the repo
-    std::cout << Term::style(Term::Style::BOLD) << "Running tty-cpp version: " << Term::style(Term::Style::RESET) << Term::Version 
-              << Term::style(Term::Style::BOLD) << "\nRepo: " << Term::style(Term::Style::RESET) << Term::Repo 
+    std::cout << Term::style(Term::Style::BOLD) << "Running tty-cpp version: " << Term::style(Term::Style::RESET) << Term::VERSION 
+              << Term::style(Term::Style::BOLD) << "\nRepo: " << Term::style(Term::Style::RESET) << Term::REPO 
               << std::endl << std::endl;
 
     if (Term::stdout_connected()) 
@@ -101,7 +101,7 @@ int main() {
     plot_line(0, 5, 10, 5);
     plot_line(5, 0, 5, 11);
 
-    Term::cursor_next(10);
+    Cursor::next_line(10);
     std::cout << std::endl;
 
     } catch (const Term::Exception& re) {
