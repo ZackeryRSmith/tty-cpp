@@ -80,7 +80,7 @@ private:
 
 class Table {
 public:
-    Table(vector<vector<string>> data, TableStyle style = TableStyle()) : data_(data), style_(style) {}
+    Table(vector<vector<string>> data = {}, TableStyle style = TableStyle()) : data_(data), style_(style) {}
     
     void set_headers(const vector<string>& headers, bool center = false) {
         headers_ = headers;
@@ -101,40 +101,42 @@ public:
             }
         }
         
-        // Calculate the total width of the table
+        // calculate the total width of the table
         int table_width = 1; // start with 1 to account for the left border
         for (int width : column_widths) {
             table_width += width + 3; // add 3 to account for the padding and right border
         }
         
-        // Print the top border
+        // print the top border
         cout << style_.get_corner(1) << repeatStr(style_.get_dash(), table_width - 2) << style_.get_corner(2) << endl;
         
-        // Print the header row
-        for (int i = 0; i < column_widths.size(); i++) {
-            if (header_centered_) {
-                int padding = column_widths[i] - headers_[i].length();
-                int left_padding = padding / 2;
-                int right_padding = padding - left_padding;
-                cout << style_.get_border() << ' ' << string(left_padding, style_.get_padding()) << headers_[i] << string(right_padding, style_.get_padding()) << " ";
-            } else {
-                cout << style_.get_border() << ' ' << setw(column_widths[i]) << left << headers_[i] << " ";
+        // print the header row
+        if (headers_.size()) {
+            for (int i = 0; i < column_widths.size(); i++) {
+                if (header_centered_) {
+                    int padding = column_widths[i] - headers_[i].length();
+                    int left_padding = padding / 2;
+                    int right_padding = padding - left_padding;
+                    cout << style_.get_border() << ' ' << string(left_padding, style_.get_padding()) << headers_[i] << string(right_padding, style_.get_padding()) << " ";
+                } else {
+                    cout << style_.get_border() << ' ' << setw(column_widths[i]) << left << headers_[i] << " ";
+                }
             }
+            cout << style_.get_border() << endl;
+        
+            // print the divider between header and data rows
+            cout << style_.get_header_left() << repeatStr(style_.get_header_separator(), table_width - 2) << style_.get_header_right() << endl;
         }
-        cout << style_.get_border() << endl;
-        
-        // Print the divider between header and data rows
-        cout << style_.get_header_left() << repeatStr(style_.get_header_separator(), table_width - 2) << style_.get_header_right() << endl;
-        
-        // Print the table data
-        for (int i = 1; i < data_.size(); i++) {
+
+        // print the table data
+        for (int i = headers_.size() ? 1 : 0; i < data_.size(); i++) {
             for (int j = 0; j < data_[i].size(); j++) {
                 cout << style_.get_border() << ' ' << setw(column_widths[j]) << left << data_[i][j] << " ";
             }
             cout << style_.get_border() << endl;
         }
         
-        // Print the bottom border
+        // print the bottom border
         cout << style_.get_corner(3) << repeatStr(style_.get_dash(), table_width - 2) << style_.get_corner(4) << endl;
     }
     
@@ -145,9 +147,10 @@ private:
     bool header_centered_ = false;
 };
 
-int main() {
+/*int main() {
     // Create a table style with a thick border and centered headers
-    TableStyle style("║", "═", "═", "╠", "╣", "╔", "╗", "╚", "╝", ' ');
+    //TableStyle style("║", "═", "═", "╠", "╣", "╔", "╗", "╚", "╝", ' ');
+    TableStyle style("│", "─", "─", "├", "┤", "╭", "╮", "╰", "╯", ' ');
     
     // Create a table with sample data and print it
     Table table({{"Smith", "Zackery", "15", "Maine"}, {"Cooper", "Alice", "75", "Detroit"}, {"Mustaine", "Dave", "61", "California"}}, style);
@@ -155,4 +158,4 @@ int main() {
     table.print();
     
     return 0;
-}
+}*/
