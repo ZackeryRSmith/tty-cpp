@@ -8,13 +8,13 @@ public:
 };
 
 /* scope guard which executes a function upon deconstruction */
-class ScopeGuard {
-public:
-    ScopeGuard(std::function<void()> f) : func(f) {}
-    ~ScopeGuard() { func(); }
-
-private:
-    std::function<void()> func;
-};
+//class ScopeGuard {
+//public:
+//    ScopeGuard(std::function<void()> f) : func(f) {}
+//    ~ScopeGuard() { func(); }
+//
+//private:
+//    std::function<void()> func;
+//};
 
 
